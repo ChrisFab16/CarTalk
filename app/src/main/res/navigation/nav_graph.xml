@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/nav_chat">
+
+    <fragment
+        android:id="@+id/nav_chat"
+        android:name="com.cartalk.ui.chat.ChatFragment"
+        android:label="Chat"
+        tools:layout="@layout/fragment_chat" />
+
+    <fragment
+        android:id="@+id/nav_documents"
+        android:name="com.cartalk.ui.documents.DocumentsFragment"
+        android:label="Documents"
+        tools:layout="@layout/fragment_documents">
+
+        <action
+            android:id="@+id/action_documents_to_detail"
+            app:destination="@id/nav_document_detail" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_document_detail"
+        android:name="com.cartalk.ui.documents.DocumentDetailFragment"
+        android:label="Document"
+        tools:layout="@layout/fragment_document_detail">
+
+        <argument
+            android:name="documentId"
+            app:argType="long" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_settings"
+        android:name="com.cartalk.ui.settings.SettingsFragment"
+        android:label="Settings"
+        tools:layout="@layout/fragment_settings" />
+
+</navigation>

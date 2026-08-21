@@ -23,18 +23,27 @@ class SettingsFragment : Fragment() {
         val app = requireActivity().application as CarTalkApplication
         val prefs = app.preferencesManager
 
-        // Load current settings
         refreshUi()
 
-        // API Key setup
         binding.btnSetApiKey.setOnClickListener {
+            if (!prefs.isSecureStorageAvailable) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("Secure storage unavailable")
+                    .setMessage(
+                        "Encrypted storage could not be initialized on this device. " +
+                            "CarTalk will not save an API key in plaintext. Try restarting the app, " +
+                            "or check that the device Keystore is working."
+                    )
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@setOnClickListener
+            }
+
             val input = android.widget.EditText(requireContext()).apply {
                 hint = "sk-ant-..."
                 inputType = android.text.InputType.TYPE_CLASS_TEXT or
                         android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                // Pre-fill if key exists (masked)
-                val existing = prefs.getApiKey()
-                if (existing != null) setText(existing)
+                // Do not prefill the saved secret
             }
 
             MaterialAlertDialogBuilder(requireContext())
@@ -44,10 +53,18 @@ class SettingsFragment : Fragment() {
                 .setPositiveButton("Save") { _, _ ->
                     val key = input.text?.toString()?.trim() ?: ""
                     if (key.startsWith("sk-ant-") || key.startsWith("sk-")) {
-                        prefs.setApiKey(key)
-                        app.claudeRepository.onApiKeyChanged()
-                        refreshUi()
-                        Toast.makeText(requireContext(), "API key saved!", Toast.LENGTH_SHORT).show()
+                        try {
+                            prefs.setApiKey(key)
+                            app.claudeRepository.onApiKeyChanged()
+                            refreshUi()
+                            Toast.makeText(requireContext(), "API key saved!", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(
+                                requireContext(),
+                                "Could not save API key securely: ${e.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     } else {
                         Toast.makeText(requireContext(), "Invalid API key format", Toast.LENGTH_LONG).show()
                     }
@@ -62,23 +79,23 @@ class SettingsFragment : Fragment() {
                 .show()
         }
 
-        // TTS toggle
         binding.switchTts.setOnCheckedChangeListener { _, isChecked ->
             prefs.setTtsEnabled(isChecked)
         }
 
-        // Deep thinking toggle
         binding.switchDeepThinking.setOnCheckedChangeListener { _, isChecked ->
             prefs.setDeepThinkingEnabled(isChecked)
         }
 
-        // Auto visual toggle
         binding.switchAutoVisual.setOnCheckedChangeListener { _, isChecked ->
             prefs.setAutoVisualEnabled(isChecked)
         }
 
-        // Custom system prompt
         binding.btnEditSystemPrompt.setOnClickListener {
+            if (!prefs.isSecureStorageAvailable) {
+                Toast.makeText(requireContext(), "Secure storage unavailable", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
             val input = android.widget.EditText(requireContext()).apply {
                 hint = "Custom instructions for Claude..."
                 minLines = 4
@@ -100,7 +117,6 @@ class SettingsFragment : Fragment() {
                 .show()
         }
 
-        // Model selection
         binding.spinnerModel.apply {
             val models = arrayOf("claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5")
             val adapter = android.widget.ArrayAdapter(
@@ -130,13 +146,14 @@ class SettingsFragment : Fragment() {
 
     private fun refreshUi() {
         val prefs = (requireActivity().application as CarTalkApplication).preferencesManager
-        val hasKey = prefs.hasApiKey()
 
-        binding.tvApiKeyStatus.text = if (hasKey) {
-            val key = prefs.getApiKey() ?: ""
-            "✅ Configured: sk-...${key.takeLast(6)}"
-        } else {
-            "❌ Not configured — required to use CarTalk"
+        binding.tvApiKeyStatus.text = when {
+            !prefs.isSecureStorageAvailable ->
+                "Secure storage unavailable — API key cannot be saved"
+            prefs.hasApiKey() ->
+                "Configured"
+            else ->
+                "Not configured — required to use CarTalk"
         }
 
         binding.switchTts.isChecked = prefs.isTtsEnabled()

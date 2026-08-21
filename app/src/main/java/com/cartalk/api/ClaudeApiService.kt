@@ -1,5 +1,6 @@
 package com.cartalk.api
 
+import com.cartalk.BuildConfig
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -24,15 +25,34 @@ class ClaudeApiService(private val apiKey: String) {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        })
+        .apply {
+            val logging = HttpLoggingInterceptor { message ->
+                // Never print raw API key material if it still slips through
+                android.util.Log.d(LOG_TAG, redactSecrets(message))
+            }.apply {
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.HEADERS
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
+                redactHeader("x-api-key")
+                redactHeader("Authorization")
+            }
+            addInterceptor(logging)
+        }
         .build()
 
     companion object {
         private const val BASE_URL = "https://api.anthropic.com/v1/messages"
         private const val ANTHROPIC_VERSION = "2023-06-01"
         private const val DEFAULT_MODEL = "claude-opus-4-6"
+        private const val LOG_TAG = "CarTalkHttp"
+
+        private fun redactSecrets(message: String): String {
+            return message
+                .replace(Regex("""sk-ant-[A-Za-z0-9_\-]+"""), "sk-ant-***")
+                .replace(Regex("""sk-[A-Za-z0-9_\-]{8,}"""), "sk-***")
+        }
     }
 
     suspend fun sendMessage(
@@ -122,7 +142,7 @@ class ClaudeApiService(private val apiKey: String) {
                         }
                         "message_stop" -> break
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Skip malformed events
                 }
             }
@@ -171,7 +191,6 @@ Only suggest visuals for specific named places, people, or things that would ben
                 val claudeResponse = gson.fromJson(responseText, ClaudeResponse::class.java)
                 val jsonText = claudeResponse.content.firstOrNull { it.type == "text" }?.text ?: ""
 
-                // Parse the visual content JSON
                 val visualMap = gson.fromJson(jsonText.trim(), Map::class.java)
                 if (visualMap["show"] == true) {
                     val visual = VisualContent(
@@ -187,8 +206,8 @@ Only suggest visuals for specific named places, people, or things that would ben
             } else {
                 Result.success(null)
             }
-        } catch (e: Exception) {
-            Result.success(null) // Graceful failure — visual display is optional
+        } catch (_: Exception) {
+            Result.success(null)
         }
     }
 

@@ -11,19 +11,17 @@ import com.cartalk.utils.PreferencesManager
  * Setup/credentials screen for Android Auto.
  * Since typing is not ideal in the car, we guide users to set up
  * the API key on their phone and show current status here.
+ * Never displays API key material (including suffixes).
  */
 class SetupCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private val prefs = PreferencesManager(carContext)
-    private val app = carContext.applicationContext as CarTalkApplication
 
     override fun onGetTemplate(): Template {
-        val hasKey = prefs.hasApiKey()
-        val maskedKey = if (hasKey) {
-            val key = prefs.getApiKey() ?: ""
-            "sk-...${key.takeLast(6)}"
-        } else {
-            "Not configured"
+        val statusText = when {
+            !prefs.isSecureStorageAvailable -> "Secure storage unavailable"
+            prefs.hasApiKey() -> "Configured"
+            else -> "Not configured"
         }
 
         val listBuilder = ItemList.Builder()
@@ -31,7 +29,7 @@ class SetupCarScreen(carContext: CarContext) : Screen(carContext) {
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("API Key Status")
-                .addText(if (hasKey) "✅ Configured: $maskedKey" else "❌ Not configured")
+                .addText(statusText)
                 .build()
         )
 
@@ -44,7 +42,7 @@ class SetupCarScreen(carContext: CarContext) : Screen(carContext) {
 
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("📱 Setup on Phone")
+                .setTitle("Setup on Phone")
                 .addText("Open CarTalk app on your phone to enter API key")
                 .setOnClickListener {
                     CarToast.makeText(
@@ -56,10 +54,10 @@ class SetupCarScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        if (hasKey) {
+        if (prefs.hasApiKey()) {
             listBuilder.addItem(
                 Row.Builder()
-                    .setTitle("🔊 Voice Mode")
+                    .setTitle("Voice Mode")
                     .addText("TTS: ${if (prefs.isTtsEnabled()) "Enabled" else "Disabled"}")
                     .setOnClickListener { toggleTts() }
                     .build()
@@ -67,7 +65,7 @@ class SetupCarScreen(carContext: CarContext) : Screen(carContext) {
 
             listBuilder.addItem(
                 Row.Builder()
-                    .setTitle("🧠 Deep Thinking")
+                    .setTitle("Deep Thinking")
                     .addText("Extended reasoning: ${if (prefs.isDeepThinkingEnabled()) "On" else "Off"}")
                     .setOnClickListener { toggleDeepThinking() }
                     .build()

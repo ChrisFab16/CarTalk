@@ -19,7 +19,6 @@ class DocumentsCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val app = carContext.applicationContext as CarTalkApplication
-    private val documentRepo = app.documentRepository
 
     private var documents = emptyList<Document>()
     private var isLoading = true
@@ -111,17 +110,12 @@ class DocumentDetailCarScreen(
             .addAction(
                 Action.Builder()
                     .setTitle("Delete")
-                    .setOnClickListener { deleteDocument() }
+                    .setOnClickListener {
+                        screenManager.push(DocumentDeleteConfirmScreen(carContext, document))
+                    }
                     .build()
             )
             .build()
-
-        val typeLabel = when (document.type) {
-            DocumentType.NOTE -> "Note"
-            DocumentType.RECAP -> "Recap — ${document.topic ?: ""}"
-            DocumentType.PLAN -> "Plan"
-            DocumentType.GENERAL -> "Document"
-        }
 
         return MessageTemplate.Builder(document.content)
             .setTitle(document.title)
@@ -130,17 +124,57 @@ class DocumentDetailCarScreen(
             .build()
     }
 
-    private fun deleteDocument() {
+    override fun onStop() {
+        super.onStop()
+        scope.cancel()
+        tts.stop()
+    }
+}
+
+/**
+ * Confirmation before deleting a document from the car UI.
+ */
+class DocumentDeleteConfirmScreen(
+    carContext: CarContext,
+    private val document: Document
+) : Screen(carContext) {
+
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val app = carContext.applicationContext as CarTalkApplication
+
+    override fun onGetTemplate(): Template {
+        return MessageTemplate.Builder(
+            "Delete \"${document.title}\"? This cannot be undone."
+        )
+            .setTitle("Confirm Delete")
+            .setHeaderAction(Action.BACK)
+            .addAction(
+                Action.Builder()
+                    .setTitle("Cancel")
+                    .setOnClickListener { screenManager.pop() }
+                    .build()
+            )
+            .addAction(
+                Action.Builder()
+                    .setTitle("Delete")
+                    .setBackgroundColor(CarColor.RED)
+                    .setOnClickListener { confirmDelete() }
+                    .build()
+            )
+            .build()
+    }
+
+    private fun confirmDelete() {
         scope.launch {
             app.documentRepository.deleteDocument(document.id)
             CarToast.makeText(carContext, "Document deleted", CarToast.LENGTH_SHORT).show()
-            screenManager.pop()
+            screenManager.pop() // confirm
+            screenManager.pop() // detail → back to list
         }
     }
 
     override fun onStop() {
         super.onStop()
         scope.cancel()
-        tts.stop()
     }
 }

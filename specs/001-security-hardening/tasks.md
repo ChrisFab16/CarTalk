@@ -64,7 +64,7 @@
 ## Phase 9: Polish
 
 - [x] T015 Run quickstart.md static checklist and mark contracts satisfied
-- [ ] T016 Commit on `main`; sync intentional paths to `pr/security-hardening`; open upstream PR
+- [x] T016 Commit on `main`; sync intentional paths to `pr/security-hardening`; open upstream PR
 
 ## Dependency graph
 

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="cartalk_secure_prefs" />
+    <exclude domain="sharedpref" path="cartalk_prefs" />
+    <exclude domain="database" path="cartalk_database" />
+</full-backup-content>

@@ -7,23 +7,37 @@ import androidx.security.crypto.MasterKey
 
 class PreferencesManager(context: Context) {
 
-    private val prefs: SharedPreferences = try {
-        val masterKey = MasterKey.Builder(context)
+    private val appContext = context.applicationContext
+
+    /**
+     * Encrypted prefs when available; null if Keystore/EncryptedSharedPreferences init failed.
+     * Fail closed: never fall back to plaintext SharedPreferences for secrets.
+     */
+    private val securePrefs: SharedPreferences? = try {
+        val masterKey = MasterKey.Builder(appContext)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
         EncryptedSharedPreferences.create(
-            context,
-            "cartalk_secure_prefs",
+            appContext,
+            SECURE_PREFS_NAME,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-    } catch (e: Exception) {
-        // Fallback to regular prefs if encryption fails (e.g. rooted device edge cases)
-        context.getSharedPreferences("cartalk_prefs", Context.MODE_PRIVATE)
+    } catch (_: Exception) {
+        null
+    }
+
+    val isSecureStorageAvailable: Boolean get() = securePrefs != null
+
+    init {
+        wipeLegacyPlaintextApiKey()
     }
 
     companion object {
+        const val SECURE_PREFS_NAME = "cartalk_secure_prefs"
+        const val LEGACY_PREFS_NAME = "cartalk_prefs"
+
         private const val KEY_API_KEY = "claude_api_key"
         private const val KEY_MODEL = "claude_model"
         private const val KEY_TTS_ENABLED = "tts_enabled"
@@ -34,46 +48,71 @@ class PreferencesManager(context: Context) {
         const val DEFAULT_MODEL = "claude-opus-4-6"
     }
 
-    fun getApiKey(): String? = prefs.getString(KEY_API_KEY, null)
-        ?.takeIf { it.isNotBlank() }
+    private fun requireSecurePrefs(): SharedPreferences {
+        return securePrefs
+            ?: throw IllegalStateException("Secure storage unavailable — cannot store or read API key")
+    }
 
+    private fun wipeLegacyPlaintextApiKey() {
+        try {
+            val legacy = appContext.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+            if (legacy.contains(KEY_API_KEY)) {
+                legacy.edit().remove(KEY_API_KEY).apply()
+            }
+        } catch (_: Exception) {
+            // Best-effort wipe only
+        }
+    }
+
+    fun getApiKey(): String? {
+        if (securePrefs == null) return null
+        return securePrefs.getString(KEY_API_KEY, null)?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * @throws IllegalStateException if secure storage is unavailable
+     */
     fun setApiKey(key: String) {
-        prefs.edit().putString(KEY_API_KEY, key.trim()).apply()
+        requireSecurePrefs().edit().putString(KEY_API_KEY, key.trim()).apply()
     }
 
     fun hasApiKey(): Boolean = getApiKey() != null
 
     fun clearApiKey() {
-        prefs.edit().remove(KEY_API_KEY).apply()
+        securePrefs?.edit()?.remove(KEY_API_KEY)?.apply()
     }
 
-    fun getModel(): String = prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+    fun getModel(): String =
+        (securePrefs?.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL)
 
     fun setModel(model: String) {
-        prefs.edit().putString(KEY_MODEL, model).apply()
+        securePrefs?.edit()?.putString(KEY_MODEL, model)?.apply()
     }
 
-    fun isTtsEnabled(): Boolean = prefs.getBoolean(KEY_TTS_ENABLED, true)
+    fun isTtsEnabled(): Boolean = securePrefs?.getBoolean(KEY_TTS_ENABLED, true) ?: true
 
     fun setTtsEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_TTS_ENABLED, enabled).apply()
+        securePrefs?.edit()?.putBoolean(KEY_TTS_ENABLED, enabled)?.apply()
     }
 
-    fun isDeepThinkingEnabled(): Boolean = prefs.getBoolean(KEY_DEEP_THINKING, false)
+    fun isDeepThinkingEnabled(): Boolean =
+        securePrefs?.getBoolean(KEY_DEEP_THINKING, false) ?: false
 
     fun setDeepThinkingEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_DEEP_THINKING, enabled).apply()
+        securePrefs?.edit()?.putBoolean(KEY_DEEP_THINKING, enabled)?.apply()
     }
 
-    fun isAutoVisualEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_VISUAL, true)
+    fun isAutoVisualEnabled(): Boolean =
+        securePrefs?.getBoolean(KEY_AUTO_VISUAL, true) ?: true
 
     fun setAutoVisualEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_VISUAL, enabled).apply()
+        securePrefs?.edit()?.putBoolean(KEY_AUTO_VISUAL, enabled)?.apply()
     }
 
-    fun getCustomSystemPrompt(): String? = prefs.getString(KEY_SYSTEM_PROMPT, null)
+    fun getCustomSystemPrompt(): String? = securePrefs?.getString(KEY_SYSTEM_PROMPT, null)
 
     fun setCustomSystemPrompt(prompt: String?) {
+        val prefs = securePrefs ?: return
         if (prompt.isNullOrBlank()) {
             prefs.edit().remove(KEY_SYSTEM_PROMPT).apply()
         } else {

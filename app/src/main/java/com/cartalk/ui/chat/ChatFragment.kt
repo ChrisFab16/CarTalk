@@ -166,9 +166,11 @@ class ChatFragment : Fragment() {
                     }
                     binding.tvVisualType.text = typeLabel
 
-                    // Load image if we have a search query (use a placeholder for now)
+                    // Load image from fixed Unsplash host with URL-encoded query only
                     state.visualContent.searchQuery?.let { query ->
-                        binding.ivVisual.load("https://source.unsplash.com/400x300/?${query.replace(" ", ",")}") {
+                        val encoded = java.net.URLEncoder.encode(query, Charsets.UTF_8.name())
+                        val url = "https://source.unsplash.com/400x300/?$encoded"
+                        binding.ivVisual.load(url) {
                             placeholder(R.drawable.ic_image_placeholder)
                             error(R.drawable.ic_image_placeholder)
                         }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="cartalk_secure_prefs" />
+        <exclude domain="sharedpref" path="cartalk_prefs" />
+        <exclude domain="database" path="cartalk_database" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="cartalk_secure_prefs" />
+        <exclude domain="sharedpref" path="cartalk_prefs" />
+        <exclude domain="database" path="cartalk_database" />
+    </device-transfer>
+</data-extraction-rules>

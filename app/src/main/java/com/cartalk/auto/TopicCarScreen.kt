@@ -4,9 +4,12 @@ import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
 import androidx.car.app.model.*
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.cartalk.CarTalkApplication
 import com.cartalk.api.ClaudeMessage
 import com.cartalk.data.models.DocumentType
+import com.cartalk.utils.SpeechRecognizerManager
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -23,11 +26,35 @@ class TopicCarScreen(carContext: CarContext) : Screen(carContext) {
     private val claudeRepo = app.claudeRepository
     private val documentRepo = app.documentRepository
     private val tts = app.ttsManager
+    private val speechManager = SpeechRecognizerManager(carContext.applicationContext)
+    private var speechMode = SpeechMode.TOPIC
+
+    private enum class SpeechMode { TOPIC, QUESTION }
 
     private val messages = mutableListOf<ClaudeMessage>()
     private var currentTopic = ""
     private var currentDisplay = "Choose a topic to explore in depth.\nTap 'Set Topic' to begin."
     private var isLoading = false
+
+    init {
+        speechManager.setCallbacks(
+            onResult = { text ->
+                when (speechMode) {
+                    SpeechMode.TOPIC -> setTopic(text)
+                    SpeechMode.QUESTION -> handleQuestion(text)
+                }
+            },
+            onError = { msg ->
+                CarToast.makeText(carContext, msg, CarToast.LENGTH_SHORT).show()
+            }
+        )
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+                speechManager.destroy()
+            }
+        })
+    }
     private var sessionId = "topic_${System.currentTimeMillis()}"
     private var isTopicSet = false
 
@@ -107,18 +134,28 @@ class TopicCarScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun speakTopic() {
-        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "What topic would you like to explore?")
-        }
-        try {
-            carContext.startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback: use first suggested topic as demo
-            setTopic(suggestedTopics.first())
+        speechMode = SpeechMode.TOPIC
+        requestMicAndListen()
+    }
+
+    private fun askQuestion() {
+        speechMode = SpeechMode.QUESTION
+        requestMicAndListen()
+    }
+
+    private fun requestMicAndListen() {
+        carContext.requestPermissions(
+            listOf(android.Manifest.permission.RECORD_AUDIO)
+        ) { granted, _ ->
+            if (granted.contains(android.Manifest.permission.RECORD_AUDIO)) {
+                speechManager.startListening()
+            } else {
+                CarToast.makeText(
+                    carContext,
+                    "Microphone permission is required for voice input",
+                    CarToast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
@@ -159,21 +196,6 @@ Ask follow-up questions to guide the learning session."""
                 currentDisplay = "Failed to start session. Check your API key in Settings."
             }
             invalidate()
-        }
-    }
-
-    private fun askQuestion() {
-        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask your question about $currentTopic")
-        }
-        try {
-            carContext.startActivity(intent)
-        } catch (e: Exception) {
-            CarToast.makeText(carContext, "Voice input not available", CarToast.LENGTH_SHORT).show()
         }
     }
 
@@ -241,11 +263,5 @@ Ask follow-up questions to guide the learning session."""
         messages.clear()
         currentDisplay = "Choose a topic to explore in depth."
         invalidate()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
-        tts.stop()
     }
 }

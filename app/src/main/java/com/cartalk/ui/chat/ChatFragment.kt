@@ -34,6 +34,7 @@ class ChatFragment : Fragment() {
     private lateinit var messageAdapter: MessageAdapter
     private lateinit var speechManager: SpeechRecognizerManager
     private var isListening = false
+    private var lastSpokenAssistantId: Long? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentChatBinding.inflate(inflater, container, false)
@@ -187,6 +188,19 @@ class ChatFragment : Fragment() {
                 } else {
                     binding.tvDeepDiveBadge.visibility = View.GONE
                     binding.btnRecap.visibility = View.GONE
+                }
+
+                // Speak completed assistant replies when TTS is enabled
+                if (!state.isLoading && state.currentStreamText.isEmpty()) {
+                    val lastAssistant = state.messages.lastOrNull { it.role == "assistant" }
+                    if (lastAssistant != null && lastAssistant.id != lastSpokenAssistantId) {
+                        lastSpokenAssistantId = lastAssistant.id
+                        (requireActivity().application as CarTalkApplication)
+                            .ttsManager.speak(lastAssistant.content)
+                    }
+                }
+                if (state.messages.isEmpty()) {
+                    lastSpokenAssistantId = null
                 }
 
                 // Saved document notification

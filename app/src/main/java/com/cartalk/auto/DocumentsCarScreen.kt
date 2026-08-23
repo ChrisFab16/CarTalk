@@ -4,6 +4,8 @@ import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
 import androidx.car.app.model.*
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.cartalk.CarTalkApplication
 import com.cartalk.data.models.Document
 import com.cartalk.data.models.DocumentType
@@ -24,6 +26,11 @@ class DocumentsCarScreen(carContext: CarContext) : Screen(carContext) {
     private var isLoading = true
 
     init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+            }
+        })
         loadDocuments()
     }
 
@@ -80,11 +87,6 @@ class DocumentsCarScreen(carContext: CarContext) : Screen(carContext) {
             .setSingleList(listBuilder.build())
             .build()
     }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
-    }
 }
 
 /**
@@ -98,6 +100,15 @@ class DocumentDetailCarScreen(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val app = carContext.applicationContext as CarTalkApplication
     private val tts = app.ttsManager
+
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+                tts.stop()
+            }
+        })
+    }
 
     override fun onGetTemplate(): Template {
         val actionStrip = ActionStrip.Builder()
@@ -123,12 +134,6 @@ class DocumentDetailCarScreen(
             .setActionStrip(actionStrip)
             .build()
     }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
-        tts.stop()
-    }
 }
 
 /**
@@ -141,6 +146,14 @@ class DocumentDeleteConfirmScreen(
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val app = carContext.applicationContext as CarTalkApplication
+
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+            }
+        })
+    }
 
     override fun onGetTemplate(): Template {
         return MessageTemplate.Builder(
@@ -171,10 +184,5 @@ class DocumentDeleteConfirmScreen(
             screenManager.pop() // confirm
             screenManager.pop() // detail → back to list
         }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
     }
 }

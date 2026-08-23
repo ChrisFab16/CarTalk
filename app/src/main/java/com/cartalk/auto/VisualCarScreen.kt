@@ -3,6 +3,8 @@ package com.cartalk.auto
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.*
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.cartalk.CarTalkApplication
 import com.cartalk.api.VisualContent
 import com.cartalk.api.VisualType
@@ -25,6 +27,14 @@ class VisualCarScreen(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val app = carContext.applicationContext as CarTalkApplication
     private val tts = app.ttsManager
+
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+            }
+        })
+    }
 
     override fun onGetTemplate(): Template {
         if (visualContent == null) {
@@ -87,10 +97,5 @@ class VisualCarScreen(
             .setHeaderAction(Action.BACK)
             .setActionStrip(actionStrip)
             .build()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
     }
 }

@@ -4,8 +4,11 @@ import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
 import androidx.car.app.model.*
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.cartalk.CarTalkApplication
 import com.cartalk.api.ClaudeMessage
+import com.cartalk.utils.SpeechRecognizerManager
 import kotlinx.coroutines.*
 
 /**
@@ -20,12 +23,28 @@ class ChatCarScreen(carContext: CarContext) : Screen(carContext) {
     private val claudeRepo = app.claudeRepository
     private val documentRepo = app.documentRepository
     private val tts = app.ttsManager
+    private val speechManager = SpeechRecognizerManager(carContext.applicationContext)
 
     private val messages = mutableListOf<ClaudeMessage>()
     private var lastResponse = "Say something to start chatting with Claude!"
     private var isLoading = false
     private var activeDocumentId: Long? = null
     private val sessionId = "car_session_${System.currentTimeMillis()}"
+
+    init {
+        speechManager.setCallbacks(
+            onResult = { text -> sendMessage(text) },
+            onError = { msg ->
+                CarToast.makeText(carContext, msg, CarToast.LENGTH_SHORT).show()
+            }
+        )
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                scope.cancel()
+                speechManager.destroy()
+            }
+        })
+    }
 
     override fun onGetTemplate(): Template {
         val actionStrip = ActionStrip.Builder()
@@ -66,26 +85,14 @@ class ChatCarScreen(carContext: CarContext) : Screen(carContext) {
             listOf(android.Manifest.permission.RECORD_AUDIO)
         ) { granted, _ ->
             if (granted.contains(android.Manifest.permission.RECORD_AUDIO)) {
-                // In a real car app, voice input is handled by the car's built-in voice recognition.
-                // We simulate by showing a prompt to use voice.
-                showVoicePrompt()
+                speechManager.startListening()
+            } else {
+                CarToast.makeText(
+                    carContext,
+                    "Microphone permission is required for voice input",
+                    CarToast.LENGTH_LONG
+                ).show()
             }
-        }
-    }
-
-    private fun showVoicePrompt() {
-        // On Android Auto, trigger the system voice input
-        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "What would you like to ask?")
-        }
-        try {
-            carContext.startActivity(intent)
-        } catch (e: Exception) {
-            CarToast.makeText(carContext, "Use the phone to type your message", CarToast.LENGTH_LONG).show()
         }
     }
 
@@ -160,11 +167,5 @@ class ChatCarScreen(carContext: CarContext) : Screen(carContext) {
         lastResponse = "Say something to start chatting with Claude!"
         activeDocumentId = null
         invalidate()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        scope.cancel()
-        tts.stop()
     }
 }

@@ -7,13 +7,19 @@ Follow Spec Kit for all features and security remediations:
 1. `/speckit-specify` → `specs/<NNN-feature>/spec.md`
 2. `/speckit-plan` → `plan.md` (+ research / contracts / quickstart as needed)
 3. `/speckit-tasks` → `tasks.md`
-4. `/speckit-analyze` (read-only consistency) after tasks
+4. **`/speckit-analyze` (mandatory gate)** — run immediately after tasks, **before any implementation**. Write `specs/<feature>/analyze-report.md`. Do **not** start `/speckit-implement` or feature code until analyze completes and all **CRITICAL** findings are resolved (or explicitly accepted by the user in spec/tasks). Resolve **HIGH** findings in artifacts or tasks before marking the feature done.
 5. `/speckit-implement` (or implement against tasks)
 6. Record manual/live checks in `specs/<feature>/validation-results.md`
 
 Active feature directory: `.specify/feature.json`.
 
 Do not implement new scope without corresponding artifacts under `specs/`.
+
+**Scope extensions on an active feature** (e.g. pre-download added mid-003): update `spec.md` + `plan.md` (+ contracts if needed) → append tasks → **`/speckit-analyze`** → implement. Do not use `/speckit-converge` alone for new user-requested capability; converge is for post-implement gaps, not skipping the analyze gate. (2026-08-23)
+
+**Do not mark build/validation tasks `[x]`** until `./gradlew assembleDebug` (or the task’s stated command) passes on the current tree — including after new native/Maven dependencies. (2026-08-23)
+
+**Voice / STT / mic lifecycle changes**: `/speckit-analyze` is artifact consistency only; before marking implement phases done, run `/universal-code-review` (or equivalent) for mic stop/teardown, download threading, and session-state paths — or keep manual quickstart sign-off explicitly open. (2026-08-23)
 
 **User-reported bugs and runtime fixes** (voice, TTS, Android Auto, permissions) are new scope — open a new feature spec or `/speckit-converge` before coding; do not patch ad hoc on `main`. (2026-08-23)
 
